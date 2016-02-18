@@ -1,7 +1,7 @@
 from google.appengine.ext import ndb
 
 class User(ndb.Model):
-    phoneNumber = ndb.IntegerProperty()
+    phoneNumber = ndb.StringProperty()
     regID = ndb.StringProperty()
     
     
