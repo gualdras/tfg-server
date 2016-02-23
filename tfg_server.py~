@@ -29,9 +29,8 @@ GCM_SEND_URL = "gcm-http.googleapis.com/gcm/send"
 #Client shared constants
 
 MESSAGE = "message"
-REG_ID = "regID"
-FROM = "phoneNumberFrom"
-PHONE_NUMBER = "phoneNumber"
+REG_ID = 'regID'
+PHONE_NUMBER = 'phoneNumber'
 
 @app.errorhandler(http.NOT_FOUND)
 def not_found(error):
@@ -61,15 +60,15 @@ def getUsers():
     return make_response(jsonify({'users': User.getAll()}), http.OK)
         
 def newUser():
-    if not request.json or not all(x in request.json for x in {PHONE_NUMBER, REG_ID}):
+    if not request.json or not all(x in request.json for x in {'phoneNumber', 'regID'}):
         abort(httlib.NOT_FOUND)
        
     u = request.json
     
 	user = User(
-		phoneNumber = u[PHONE_NUMBER],
-		regID = u[REG_ID],
-		id = u[PHONE_NUMBER])
+		phoneNumber = u['phoneNumber'],
+		regID = u['regID'],
+		id = u['phoneNumber'])
 	
 	user.put()
 		
@@ -128,11 +127,10 @@ def sendMessage(id_user):
 	return make_response(jsonify({'sent':data}), http.OK)	
     
 def sendMsg(id_user):
-	u = request.json
     key = ndb.Key(User, id_user)
     user = key.get()   
     
-    params = json.dumps({"data": {MESSAGE: u[MESSAGE], FROM: u[PHONE_NUMBER]}, "to": user.regID})
+    params = json.dumps({"data": {MESSAGE: request.json[MESSAGE], PHONE_NUMBER: user.phoneNumber}, "to": user.regID})
        
     conn = http.HTTPSConnection(GCM_SEND_URL)
     conn.request("POST", "", params, GCM_HEADERS)
