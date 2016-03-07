@@ -32,10 +32,11 @@ MESSAGE = "message"
 REG_ID = "regID"
 FROM = "phoneNumberFrom"
 PHONE_NUMBER = "phoneNumber"
+USERS = "contacts"
 
 @app.errorhandler(http.NOT_FOUND)
 def not_found(error):
-    return make_response(jsonify({'error': 'Not Found'}), httlib.NOT_FOUND)
+    return make_response(jsonify({'error': 'Not Found'}), http.NOT_FOUND)
 
 @app.errorhandler(409)
 def not_found(error):
@@ -55,6 +56,8 @@ def manager_users():
     if request.method == GET:
         return getUsers()
     if request.method == POST:
+        if USERS in request.json:
+            return checkRegisteredUsers()
         return newUser()
 
 def getUsers():
@@ -74,6 +77,19 @@ def newUser():
 	user.put()
 		
     return make_response(jsonify({'created':user.key.id()}), http.CREATED)
+
+def checkRegisteredUsers():
+    users = request.json[USERS]
+    matches = []
+    
+    for u in users:
+        key = ndb.Key(User, u[PHONE_NUMBER])
+        user = key.get()
+        if user:
+            matches.append(u)
+            
+    return make_response(jsonify({USERS: matches}), http.OK)            
+    
 
 @app.route('/users/<path:id_user>', methods = [GET, PUT, DELETE, POST])
 def manager_user(id_user):
@@ -132,7 +148,7 @@ def sendMsg(id_user):
     key = ndb.Key(User, id_user)
     user = key.get()   
     
-    params = json.dumps({"data": {MESSAGE: u[MESSAGE], FROM: u[PHONE_NUMBER]}, "to": user.regID})
+    params = json.dumps({"data": {MESSAGE: u[MESSAGE], FROM: u[FROM]}, "to": user.regID})
        
     conn = http.HTTPSConnection(GCM_SEND_URL)
     conn.request("POST", "", params, GCM_HEADERS)
