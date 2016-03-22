@@ -5,6 +5,7 @@ import json
 from flask import Flask, jsonify, abort, make_response, request, url_for
 from gcm import GCM
 from google.appengine.ext import ndb
+from google.appengine.ext import blobstore
 import httplib as http
 from itemTypes import User
 
@@ -160,7 +161,44 @@ def sendMsg(id_user):
     
     conn.close
     
-    return make_response(jsonify({'response':data}), status)    
+    return make_response(jsonify({'response':data}), status)  
+    
+'''
+Blobstore for photos management
+'''
+    
+@app.route("/upload_form", methods=[GET])
+def manager_upload_form():
+	if request.method == GET:
+		return upload()
+			
+def upload():
+	uploadUri = blobstore.create_upload_url('/upload')
+    return render_template('upload.html', uploadUri=uploadUri)
 
+    
+@app.route("/upload_photo", methods=[POST])
+def manager_upload_photo():
+	if request.method == POST:
+		upload_photo()
+	
+def upload_photo():
+	f = request.files['file']
+	header = f.headers['Content-Type']
+	parsed_header = parse_options_header(header)
+	blob_key = parsed_header[1]['blob-key']
+	return blob_key
+        
+@app.route("/img/<id_blob>", methods=[GET])
+def manager_download_photo(id_blob):
+	if request.method == GET:
+		return download_photo()
+	
+def download_photo(id_blob):
+    blob_info = blobstore.get(id_blob)
+    response = make_response(blob_info.open().read())
+    response.headers['Content-Type'] = blob_info.content_type
+    return response
+    
 if __name__ == '__main__':
     app.run(debug=True)
