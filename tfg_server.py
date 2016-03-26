@@ -173,8 +173,8 @@ def manager_upload_form():
 		return upload()
 			
 def upload():
-	uploadUri = blobstore.create_upload_url('/upload')
-    return render_template('upload.html', uploadUri=uploadUri)
+	uploadUri = blobstore.create_upload_url('/upload_photo')
+    return make_response(uploadUri, http.OK)
 
     
 @app.route("/upload_photo", methods=[POST])
