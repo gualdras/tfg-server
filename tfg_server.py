@@ -8,6 +8,7 @@ from google.appengine.ext import ndb
 from google.appengine.ext import blobstore
 import httplib as http
 from itemTypes import User
+from werkzeug import parse_options_header
 
 
 app = Flask(__name__)
@@ -30,6 +31,7 @@ GCM_SEND_URL = "gcm-http.googleapis.com/gcm/send"
 #Client shared constants
 
 MESSAGE = "message"
+TYPE = "type"
 REG_ID = "regID"
 FROM = "phoneNumberFrom"
 PHONE_NUMBER = "phoneNumber"
@@ -149,7 +151,7 @@ def sendMsg(id_user):
     key = ndb.Key(User, id_user)
     user = key.get()   
     
-    params = json.dumps({"data": {MESSAGE: u[MESSAGE], FROM: u[FROM]}, "to": user.regID})
+    params = json.dumps({"data": {FROM: u[FROM], TYPE: u[TYPE], MESSAGE: u[MESSAGE]}, "to": user.regID})
        
     conn = http.HTTPSConnection(GCM_SEND_URL)
     conn.request("POST", "", params, GCM_HEADERS)
@@ -180,19 +182,19 @@ def upload():
 @app.route("/upload_photo", methods=[POST])
 def manager_upload_photo():
 	if request.method == POST:
-		upload_photo()
+		return upload_photo()
 	
 def upload_photo():
 	f = request.files['file']
 	header = f.headers['Content-Type']
 	parsed_header = parse_options_header(header)
 	blob_key = parsed_header[1]['blob-key']
-	return blob_key
+	return make_response(blob_key, http.CREATED)
         
 @app.route("/img/<id_blob>", methods=[GET])
 def manager_download_photo(id_blob):
 	if request.method == GET:
-		return download_photo()
+		return download_photo(id_blob)
 	
 def download_photo(id_blob):
     blob_info = blobstore.get(id_blob)
