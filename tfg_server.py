@@ -37,6 +37,12 @@ FROM = "phoneNumberFrom"
 PHONE_NUMBER = "phoneNumber"
 USERS = "contacts"
 
+TAG = "tag"
+KEY_WORDS = "key_words"
+LINK = "link"
+SITE_LINK = "site_link"
+FLICKR_TAGS = "flickr_tags"
+
 @app.errorhandler(http.NOT_FOUND)
 def not_found(error):
     return make_response(jsonify({'error': 'Not Found'}), http.NOT_FOUND)
@@ -68,7 +74,7 @@ def getUsers():
         
 def newUser():
     if not request.json or not all(x in request.json for x in {PHONE_NUMBER, REG_ID}):
-        abort(httlib.NOT_FOUND)
+        abort(http.NOT_FOUND)
        
     u = request.json
     
@@ -114,8 +120,7 @@ def updateUser(id_user):
 		abort(http.NOT_FOUND)
 		
 	key = ndb.Key(User, id_user)
-	user = key.get()
-	
+    user = key.get()
     u = request.json
     
     user.regID = u[REG_ID]
@@ -168,7 +173,33 @@ def sendMsg(id_user):
 '''
 Blobstore for photos management
 '''
+
+@app.route("/images", method = ['POST']):
+def manager_imgs():
+	if request.method == POST:
+		return addImg()
+
+def addImg():
+	if not request.json or not all(x in request.json for x in {}):
+		abort(http.NOT_FOUND)
     
+	img = request.json
+
+	image = Image(
+		tags = img[TAG]
+		keyWords = img[KEY_WORDS]
+		link = img[LINK]
+		siteLink = img[SITE_LINK]
+		id = img[LINK])
+
+	if FLICKR_TAGS in img:
+		image.flickr_tags = img[FLICKR_TAGS]
+
+	image.put()
+
+	return make_response(image.key, http.OK)
+	
+
 @app.route("/upload_form", methods=[GET])
 def manager_upload_form():
 	if request.method == GET:
@@ -179,16 +210,23 @@ def upload():
     return make_response(uploadUri, http.OK)
 
     
-@app.route("/upload_photo", methods=[POST])
-def manager_upload_photo():
+@app.route("/upload_photo/<path:id_image>", methods=[POST])
+def manager_upload_photo(id_img):
 	if request.method == POST:
-		return upload_photo()
+		return upload_photo(id_img)
 	
-def upload_photo():
+def upload_photo(id_img):
+	key = ndb.Key(Image, id_img)
+	img = key.get()
+
 	f = request.files['file']
 	header = f.headers['Content-Type']
 	parsed_header = parse_options_header(header)
 	blob_key = parsed_header[1]['blob-key']
+	
+	img.blobKey = blob_key
+	img.put()
+
 	return make_response(blob_key, http.CREATED)
         
 @app.route("/img/<id_blob>", methods=[GET])
@@ -202,5 +240,6 @@ def download_photo(id_blob):
     response.headers['Content-Type'] = blob_info.content_type
     return response
     
+def 
 if __name__ == '__main__':
     app.run(debug=True)
