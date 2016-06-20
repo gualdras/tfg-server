@@ -328,6 +328,24 @@ def updateImageUsed(user, imgKey):
 		imagesUsed[imgKey] = 1
 		
 
+@app.route("/pictograms/<path:id_img>", methods=[PUT])
+def manager_pictograms(id_img):
+	return updatePictogram(id_img)
+
+def updatePictogram(id_img):
+	key = ndb.Key(Image, id_img)
+	image = key.get()
+
+	img = request.json
+	
+	tags = img[TAG]
+	for k in tags:
+		image.tags.append(Tag(tag=k, probability=tags[k]))
+	
+	image.put()
+	
+	return make_response(jsonify({'updated': image.key.id()}), http.OK)
+
 @app.route("/try/<path:id_img>", methods=[GET])
 def manager_try(id_img):
 	image = (ndb.Key(Image, id_img)).get()
