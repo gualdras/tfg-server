@@ -274,16 +274,7 @@ def editImg(id_img):
 	user = (ndb.Key(User, img[USER_ID])).get()
 
 	newKeyWords = img[KEY_WORDS]
-
-
-		
-	for k in newKeyWords:
-		try:
-			image.keyWords[k] = image.keyWords[k] + 1
-		except TypeError:
-			image.keyWords = {k:1}
-		except KeyError:
-			image.keyWords[k] = 1
+	image.updateKeyWords(newKeyWords)
 
 	if LINK in img:
 		image.link = img[LINK]
@@ -299,33 +290,13 @@ def editImg(id_img):
 
 	image.put()
 
-	updateUserKeyWords(user, newKeyWords)
-	updateImageUsed(user, image)
+	user.updateKeyWords(newKeyWords)
+	user.updateImagesUsed(image.key)
 
 	user.put()
 
 	return make_response(jsonify({'updated': image.key.id()}), http.OK)
 
-def updateUserKeyWords(user, newKeyWords):
-	keyWords = user.keyWords
-	for k in newKeyWords:
-		try:
-			keyWords[k] = keyWords[k] + 1
-		except TypeError:
-			keyWords = {k:1}
-		except KeyError:
-			keyWords[k] = 1
-		
-
-def updateImageUsed(user, imgKey):
-	imagesUsed = user.imagesUsed
-	try:
-		imagesUsed[imgKey] = imagesUsed[imgKey] + 1
-	except TypeError:
-		imagesUsed = {}
-		imagesUsed[imgKey] = 1
-	except KeyError:
-		imagesUsed[imgKey] = 1
 		
 
 @app.route("/pictograms/<path:id_img>", methods=[PUT])
