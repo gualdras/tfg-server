@@ -36,6 +36,9 @@ class Image(ndb.Model):
 	def updateKeyWords(self, newKeyWords):
 		updateKeyWords(self, newKeyWords)
 
+class RelatedUsers(ndb.Model):
+	user = 
+	relation = ndb.IntegerProperty()
 
 class User(ndb.Model):
 	phoneNumber = ndb.StringProperty()
@@ -66,12 +69,12 @@ class User(ndb.Model):
 		updated = False
 		updatedImagesUsed = []
 		for img in self.imagesUsed:
-			if img.key != imgKey
+			if img.key != imgKey:
 				updatedImagesUsed.append(img)
 			else:
-				updatedImagesUsed.append(ImageUsed(img = imgKey, count = img.count + 1)
+				updatedImagesUsed.append(ImageUsed(img = imgKey, count = img.count + 1))
 				updated = True
-		if !updated:
+		if not updated:
 			updatedImagesUsed.append(ImageUsed(img = imgKey, count = 1))
 		self.imagesUsed = updatedImagesUsed
 		self.put()
@@ -83,12 +86,12 @@ def updateKeyWords(entity, newKeyWords):
 		for k in oldKeyWords:
 			if k.keyWord in newKeyWords:
 				updatedKeyWords.append(KeyWord(keyWord = k.keyWord, count = k.count + 1))
-				newKeyWords.remove(k.keyWord)
+				del newKeyWords[k.keyWord]
 			else:
 				updatedKeyWords.append(k)
-		for keyWord in newKeyWords.
-			updatedKeyWords.append(KeyWord(keyWord = keyWord, count = 1)
+		for keyWord in newKeyWords:
+			updatedKeyWords.append(KeyWord(keyWord = keyWord, count = 1))
 		
-		entity.keyWords = updatedKeywords
+		entity.keyWords = updatedKeyWords
 		entity.put()
 
