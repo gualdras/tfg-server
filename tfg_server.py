@@ -44,176 +44,182 @@ LINK = "link"
 SITE_LINK = "site_link"
 FLICKR_TAGS = "flickr_tags"
 
+
 @app.errorhandler(http.NOT_FOUND)
 def not_found(error):
-    return make_response(jsonify({'error': 'Not Found'}), http.NOT_FOUND)
+	return make_response(jsonify({'error': 'Not Found'}), http.NOT_FOUND)
+
 
 @app.errorhandler(409)
 def not_found(error):
-    return make_response(jsonify({'error': 'Email already in use'}), 409)
+	return make_response(jsonify({'error': 'Email already in use'}), 409)
 
 
 @app.errorhandler(501)
 def not_found(error):
-    return make_response(jsonify({'error': 'Not Implemented'}), 501)
+	return make_response(jsonify({'error': 'Not Implemented'}), 501)
 
 
 
 
-	
+
 @app.route('/users', methods = [GET, POST])
 def manager_users():
-    if request.method == GET:
-        return getUsers()
-    if request.method == POST:
-        if USERS in request.json:
-            return checkRegisteredUsers()
-        return newUser()
+	if request.method == GET:
+		return getUsers()
+	if request.method == POST:
+		if USERS in request.json:
+			return checkRegisteredUsers()
+		return newUser()
 
 def getUsers():
-    return make_response(jsonify({'users': User.getAll()}), http.OK)
-        
+	return make_response(jsonify({'users': User.get_all()}), http.OK)
+
 def newUser():
-    if not request.json or not all(x in request.json for x in {PHONE_NUMBER, REG_ID}):
-        abort(http.NOT_FOUND)
-       
-    u = request.json
-    
-	user = User(
-		phoneNumber = u[PHONE_NUMBER],
-		regID = u[REG_ID],
-		id = u[PHONE_NUMBER])
-	
+	if not request.json or not all(x in request.json for x in {PHONE_NUMBER, REG_ID}):
+		abort(http.NOT_FOUND)
+
+	u = request.json
+
+	user = User(phoneNumber=u[PHONE_NUMBER], regID=u[REG_ID], id=u[PHONE_NUMBER])
+
 	user.put()
-		
-    return make_response(jsonify({'created':user.key.id()}), http.CREATED)
+
+	return make_response(jsonify({'created':user.key.id()}), http.CREATED)
 
 def checkRegisteredUsers():
-    users = request.json[USERS]
-    matches = []
-    
-    for u in users:
-        key = ndb.Key(User, u[PHONE_NUMBER])
-        user = key.get()
-        if user:
-            matches.append(u)
-            
-    return make_response(jsonify({USERS: matches}), http.OK)            
-    
+	users = request.json[USERS]
+	matches = []
 
-@app.route('/users/<path:id_user>', methods = [GET, PUT, DELETE, POST])
+	for u in users:
+		key = ndb.Key(User, u[PHONE_NUMBER])
+		user = key.get()
+		if user:
+			matches.append(u)
+
+	return make_response(jsonify({USERS: matches}), http.OK)
+
+
+@app.route('/users/<path:id_user>', methods = [GET, PUT, DELETE])
 def manager_user(id_user):
-    if request.method == GET:
-        return getUserDetails(id_user)
-    if request.method == PUT:
-        return updateUser(id_user)
-    if request.method == DELETE:
-        return deleteUser(id_user)
-    
+	if request.method == GET:
+		return getUserDetails(id_user)
+	if request.method == PUT:
+		return updateUser(id_user)
+	if request.method == DELETE:
+		return deleteUser(id_user)
+
 
 def getUserDetails(id_user):
-    key = ndb.Key(User, id_user)
+	key = ndb.Key(User, id_user)
 	user = key.get()
-    return make_response(jsonify(user.userComplete2json()), http.OK)
+	return make_response(jsonify(user.user_complete2json()), http.OK)
 
 def updateUser(id_user):
-	if not request.json or not REG_ID in request.json:
+	if not request.json or not (REG_ID in request.json):
 		abort(http.NOT_FOUND)
-		
-	key = ndb.Key(User, id_user)
-    user = key.get()
-    u = request.json
-    
-    user.regID = u[REG_ID]
-			
-	user.put()
-		
-	return make_response(jsonify({'updated':user.to_dict()}), http.OK)
-	
-def deleteUser(id_user):
-    key = ndb.Key(User, id_user)
-	key.delete()
-    return make_response(jsonify({'deleted':id_user}), http.OK)
-       
-@app.route('/users/<path:id_user>/send', methods = [POST])
-def manager_user_send(id_user): 
-    if request.method == POST:
-        return sendMsg(id_user)
-    
-def sendMessage(id_user):
-    key = ndb.Key(User, id_user)
-    user = key.get()
 
-    gcm = GCM(API_KEY)
-    
-    data = request.json
-    reg_id = [user.regID]
-    
-    response = gcm.json_request(registration_ids = reg_id, data = data)
-	return make_response(jsonify({'sent':data}), http.OK)	
-    
+	key = ndb.Key(User, id_user)
+	user = key.get()
+	u = request.json
+
+	user.regID = u[REG_ID]
+
+	user.put()
+
+	return make_response(jsonify({'updated':user.to_dict()}), http.OK)
+
+def deleteUser(id_user):
+	key = ndb.Key(User, id_user)
+	key.delete()
+	return make_response(jsonify({'deleted':id_user}), http.OK)
+
+@app.route('/users/<path:id_user>/send', methods = [POST])
+def manager_user_send(id_user):
+	if request.method == POST:
+		return sendMsg(id_user)
+
+def sendMessage(id_user):
+	key = ndb.Key(User, id_user)
+	user = key.get()
+
+	gcm = GCM(API_KEY)
+
+	data = request.json
+	reg_id = [user.regID]
+
+	response = gcm.json_request(registration_ids = reg_id, data = data)
+	return make_response(jsonify({'sent':data}), http.OK)
+
 def sendMsg(id_user):
 	u = request.json
-    key = ndb.Key(User, id_user)
-    user = key.get()   
-    
-    params = json.dumps({"data": {FROM: u[FROM], TYPE: u[TYPE], MESSAGE: u[MESSAGE]}, "to": user.regID})
-       
-    conn = http.HTTPSConnection(GCM_SEND_URL)
-    conn.request("POST", "", params, GCM_HEADERS)
-    
-    response = conn.getresponse()
-    
-    status = response.status
-    data = response.read()
-    
-    conn.close
-    
-    return make_response(jsonify({'response':data}), status)  
-    
+	key = ndb.Key(User, id_user)
+	user = key.get()
+
+	params = json.dumps({"data": {FROM: u[FROM], TYPE: u[TYPE], MESSAGE: u[MESSAGE]}, "to": user.regID})
+
+	conn = http.HTTPSConnection(GCM_SEND_URL)
+	conn.request("POST", "", params, GCM_HEADERS)
+
+	response = conn.getresponse()
+
+	status = response.status
+	data = response.read()
+
+	conn.close
+
+	return make_response(jsonify({'response':data}), status)
+
+
+
+
 '''
 Blobstore for photos management
 '''
+
+
+
+
 
 # Get blob uri
 @app.route("/upload_form", methods=[GET])
 def manager_upload_form():
 	if request.method == GET:
 		return upload()
-			
+
 def upload():
 	uploadUri = blobstore.create_upload_url('/upload_photo')
-    return make_response(uploadUri, http.OK)
+	return make_response(uploadUri, http.OK)
 
 # upload photo and get blob_key
 @app.route("/upload_photo", methods=[POST])
 def manager_upload_photo():
 	if request.method == POST:
 		return upload_photo()
-	
+
 def upload_photo():
 	f = request.files['file']
 	header = f.headers['Content-Type']
 	parsed_header = parse_options_header(header)
 	blob_key = parsed_header[1]['blob-key']
-	
+
 	image = Image(blobKey=blob_key, id=blob_key)
 
 	image.put()
 
 	return make_response(blob_key, http.CREATED)
-       
+
 #Download photo
 @app.route("/img/<id_blob>", methods=[GET])
 def manager_download_photo(id_blob):
 	if request.method == GET:
 		return download_photo(id_blob)
-	
+
 def download_photo(id_blob):
-    blob_info = blobstore.get(id_blob)
-    response = make_response(blob_info.open().read())
-    response.headers['Content-Type'] = blob_info.content_type
-    return response
+	blob_info = blobstore.get(id_blob)
+	response = make_response(blob_info.open().read())
+	response.headers['Content-Type'] = blob_info.content_type
+	return response
 
 '''
 @app.route("/images", methods=[POST])
@@ -265,7 +271,7 @@ def manager_img(id_img):
 def editImg(id_img):
 	if not request.json or not all(x in request.json for x in {KEY_WORDS, USER_ID}):
 		abort(http.NOT_FOUND)
-	
+
 	key = ndb.Key(Image, id_img)
 	image = key.get()
 
@@ -274,30 +280,53 @@ def editImg(id_img):
 	user = (ndb.Key(User, img[USER_ID])).get()
 
 	newKeyWords = img[KEY_WORDS]
-	image.updateKeyWords(newKeyWords)
+	image.update_key_words(newKeyWords)
 
 	if LINK in img:
 		image.link = img[LINK]
-	
+
 	if SITE_LINK in img:
 		image.siteLink = img[SITE_LINK]
-	
+
 	if TAG in img:
 		tags = img[TAG]
 		for k in tags:
 			image.tags.append(Tag(tag=k, probability=tags[k]))
 
-
 	image.put()
 
-	user.updateKeyWords(newKeyWords)
-	user.updateImagesUsed(image.key)
-
+	user.update_key_words(newKeyWords)
 	user.put()
+
+	update_images_used(image.key, user.key)
 
 	return make_response(jsonify({'updated': image.key.id()}), http.OK)
 
-		
+
+def update_images_used(self, image, user):
+	images_used = ImageUsed.get_by_id(image.id() + user.id())
+
+	if images_used is not None:
+		images_used.count += 1
+	else:
+		images_used = ImageUsed(image=image, user=user, count=1, id=image.id() + user.id())
+		update_related_users(user, image)
+
+	images_used.put()
+
+
+def update_related_users(user1, image):
+	images_used = ImageUsed.query(ImageUsed.image == image)
+	for imgUsed in images_used:
+		user2 = imgUsed.user.get()
+		r_user = RelatedUsers.query(RelatedUsers.user1.IN([user1, user2]),
+		                            RelatedUsers.user2.IN([user1, user2]))
+		if r_user is not None:
+			r_user.relation += 1
+		else:
+			r_user = RelatedUsers(user1=user1, user2=user2, relation=1)
+		r_user.put()
+
 
 @app.route("/pictograms/<path:id_img>", methods=[PUT])
 def manager_pictograms(id_img):
@@ -308,13 +337,13 @@ def updatePictogram(id_img):
 	image = key.get()
 
 	img = request.json
-	
+
 	tags = img[TAG]
 	for k in tags:
 		image.tags.append(Tag(tag=k, probability=tags[k]))
-	
+
 	image.put()
-	
+
 	return make_response(jsonify({'updated': image.key.id()}), http.OK)
 
 @app.route("/try/<path:id_img>", methods=[GET])
@@ -323,6 +352,6 @@ def manager_try(id_img):
 	return make_response(jsonify(image.imageComplete2json()), 200)
 
 
-    
+
 if __name__ == '__main__':
-    app.run(debug=True)
+	app.run(debug=True)
