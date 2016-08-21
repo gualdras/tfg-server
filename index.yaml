@@ -1,0 +1,20 @@
+indexes:
+- kind: ImageUsed
+  properties:
+  - name: image
+  - name: user
+- kind: RelatedUsers
+  properties:
+  - name: user1
+  - name: user2
+  - name: relation
+    direction: desc
+- kind: RelatedUsers
+  properties:
+  - name: user1
+  - name: relation
+- kind: RelatedUsers
+  properties:
+  - name: user2
+  - name: relation
+    direction: desc

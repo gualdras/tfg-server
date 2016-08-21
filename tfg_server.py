@@ -7,8 +7,10 @@ from gcm import GCM
 from google.appengine.ext import ndb
 from google.appengine.ext import blobstore
 import httplib as http
-from itemTypes import User, Image, Tag, KeyWord, ImageUsed
 from werkzeug import parse_options_header
+
+from itemTypes import User, Image, Tag, KeyWord, ImageUsed
+import recommender_system
 
 
 app = Flask(__name__)
@@ -38,6 +40,7 @@ PHONE_NUMBER = "phoneNumber"
 USERS = "contacts"
 USER_ID = PHONE_NUMBER
 
+BLOB = "blob"
 TAG = "tag"
 KEY_WORDS = "key_words"
 LINK = "link"
@@ -48,19 +51,6 @@ FLICKR_TAGS = "flickr_tags"
 @app.errorhandler(http.NOT_FOUND)
 def not_found(error):
 	return make_response(jsonify({'error': 'Not Found'}), http.NOT_FOUND)
-
-
-@app.errorhandler(409)
-def not_found(error):
-	return make_response(jsonify({'error': 'Email already in use'}), 409)
-
-
-@app.errorhandler(501)
-def not_found(error):
-	return make_response(jsonify({'error': 'Not Implemented'}), 501)
-
-
-
 
 
 @app.route('/users', methods = [GET, POST])
@@ -117,7 +107,7 @@ def getUserDetails(id_user):
 
 def updateUser(id_user):
 	if not request.json or not (REG_ID in request.json):
-		abort(http.NOT_FOUND)
+		abort(http.BAD_REQUEST)
 
 	key = ndb.Key(User, id_user)
 	user = key.get()
@@ -209,68 +199,53 @@ def upload_photo():
 
 	return make_response(blob_key, http.CREATED)
 
-#Download photo
-@app.route("/img/<id_blob>", methods=[GET])
-def manager_download_photo(id_blob):
-	if request.method == GET:
-		return download_photo(id_blob)
 
-def download_photo(id_blob):
-	blob_info = blobstore.get(id_blob)
+@app.route("/images", methods=[GET])
+def manager_images():
+	if request.method == GET:
+		if request.args.get(LINK):
+			return get_image_by_link()
+		return get_images_by_keywords()
+
+
+def get_image_by_link():
+	image = Image.query(Image.link == request.args.get(LINK))
+
+	if image is not None:
+		return make_response(jsonify({BLOB: image.get().blobKey}), http.OK)
+	else:
+		return make_response("No images", http.NOT_FOUND)
+
+
+def get_images_by_keywords():
+	u = request.args.get(USER_ID)
+	user = ndb.Key(User, u)
+	key_words = request.args.getlist(KEY_WORDS)
+
+	collaborative_images = recommender_system.get_images_collaborative(user, key_words)
+
+	return make_response(jsonify({BLOB: collaborative_images}), http.OK)
+
+
+
+@app.route("/images/<path:id_img>", methods=[GET, PUT])
+def manager_image(id_img):
+	if request.method == GET:
+		return download_image(id_img)
+	if request.method == PUT:
+		return edit_img(id_img)
+
+
+def download_image(id_img):
+	blob_info = blobstore.get(id_img)
 	response = make_response(blob_info.open().read())
 	response.headers['Content-Type'] = blob_info.content_type
 	return response
 
-'''
-@app.route("/images", methods=[POST])
-def manager_imgs():
-	if request.method == POST:
-		return addInformation()
 
-def addImg():
-	if not request.json or not all(x in request.json for x in {LINK, SITE_LINK, TAG, KEY_WORDS, USER_ID}):
-		abort(http.NOT_FOUND)
-
-	img = request.json
-	user = (ndb.Key(User, img[USER_ID])).get()
-
-	image = Image(
-		link = img[LINK],
-		siteLink = img[SITE_LINK],
-		id = img[LINK])
-
-	tags = img[TAG]
-	keyWords= img[KEY_WORDS]
-
-	for k in tags:
-		image.tags.append(Tag(tag=k, probability=tags[k]))
-
-	for k in keyWords:
-		image.keyWords.append(KeyWord(keyWord=k, count=keyWords[k]))
-
-	if FLICKR_TAGS in img:
-		image.flickr_tags = img[FLICKR_TAGS]
-
-	image.put()
-
-
-	updateUserKeyWords(user, keyWords)
-
-	updateImageUsed(user, image)
-
-	user.put()
-
-	return make_response(image.key.id(), http.OK)
-'''
-
-@app.route("/images/<path:id_img>", methods=[PUT])
-def manager_img(id_img):
-	if request.method == PUT:
-		return editImg(id_img)
-
-def editImg(id_img):
+def edit_img(id_img):
 	if not request.json or not all(x in request.json for x in {KEY_WORDS, USER_ID}):
-		abort(http.NOT_FOUND)
+		abort(http.BAD_REQUEST)
 
 	key = ndb.Key(Image, id_img)
 	image = key.get()
@@ -280,7 +255,7 @@ def editImg(id_img):
 	user = (ndb.Key(User, img[USER_ID])).get()
 
 	newKeyWords = img[KEY_WORDS]
-	image.update_key_words(newKeyWords)
+	update_key_words(image, newKeyWords)
 
 	if LINK in img:
 		image.link = img[LINK]
@@ -295,7 +270,7 @@ def editImg(id_img):
 
 	image.put()
 
-	user.update_key_words(newKeyWords)
+	update_key_words(user, newKeyWords)
 	user.put()
 
 	update_images_used(image.key, user.key)
@@ -303,7 +278,24 @@ def editImg(id_img):
 	return make_response(jsonify({'updated': image.key.id()}), http.OK)
 
 
-def update_images_used(self, image, user):
+def update_key_words(entity, new_key_words):
+	updated_key_words = []
+	old_key_words = entity.keyWords
+
+	for k in old_key_words:
+		if k.keyWord in new_key_words:
+			updated_key_words.append(KeyWord(keyWord=k.keyWord, count=k.count + 1))
+			new_key_words.remove(k.keyWord)
+		else:
+			updated_key_words.append(k)
+	for keyWord in new_key_words:
+		updated_key_words.append(KeyWord(keyWord=keyWord, count=1))
+
+	entity.keyWords = updated_key_words
+	entity.put()
+
+
+def update_images_used(image, user):
 	images_used = ImageUsed.get_by_id(image.id() + user.id())
 
 	if images_used is not None:
@@ -346,10 +338,11 @@ def updatePictogram(id_img):
 
 	return make_response(jsonify({'updated': image.key.id()}), http.OK)
 
-@app.route("/try/<path:id_img>", methods=[GET])
-def manager_try(id_img):
-	image = (ndb.Key(Image, id_img)).get()
-	return make_response(jsonify(image.imageComplete2json()), 200)
+
+@app.route("/try", methods=[GET])
+def manager_try():
+	key_words = request.args.getlist(KEY_WORDS)
+	return make_response(jsonify({"hola":key_words}), 200)
 
 
 

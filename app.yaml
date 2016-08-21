@@ -14,3 +14,5 @@ libraries:
   version: "2.6"
 - name: ssl
   version: latest
+- name: numpy
+  version: "1.6.1"
