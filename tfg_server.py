@@ -2,14 +2,14 @@
 # -*- coding:utf-8; tab-width:4; mode:python -*-
 
 import json
-from flask import Flask, jsonify, abort, make_response, request, url_for
+from flask import Flask, jsonify, abort, make_response, request
 from gcm import GCM
 from google.appengine.ext import ndb
 from google.appengine.ext import blobstore
 import httplib as http
 from werkzeug import parse_options_header
-
-from itemTypes import User, Image, Tag, KeyWord, ImageUsed
+import os.path
+from itemTypes import User, Image, Tag, KeyWord, ImageUsed, RelatedUsers
 import recommender_system
 
 
@@ -40,9 +40,11 @@ PHONE_NUMBER = "phoneNumber"
 USERS = "contacts"
 USER_ID = PHONE_NUMBER
 
+IMAGE = "image"
 BLOB = "blob"
 TAG = "tag"
 KEY_WORDS = "key_words"
+CATEGORIES = "categories"
 LINK = "link"
 SITE_LINK = "site_link"
 FLICKR_TAGS = "flickr_tags"
@@ -53,17 +55,12 @@ def not_found(error):
 	return make_response(jsonify({'error': 'Not Found'}), http.NOT_FOUND)
 
 
-@app.route('/users', methods = [GET, POST])
+@app.route('/users', methods = [POST, PUT])
 def manager_users():
-	if request.method == GET:
-		return getUsers()
+	if request.method == PUT:
+		return checkRegisteredUsers()
 	if request.method == POST:
-		if USERS in request.json:
-			return checkRegisteredUsers()
 		return newUser()
-
-def getUsers():
-	return make_response(jsonify({'users': User.get_all()}), http.OK)
 
 def newUser():
 	if not request.json or not all(x in request.json for x in {PHONE_NUMBER, REG_ID}):
@@ -71,7 +68,7 @@ def newUser():
 
 	u = request.json
 
-	user = User(phoneNumber=u[PHONE_NUMBER], regID=u[REG_ID], id=u[PHONE_NUMBER])
+	user = User(phoneNumber=u[PHONE_NUMBER], regID=u[REG_ID], id=u[USER_ID])
 
 	user.put()
 
@@ -82,7 +79,7 @@ def checkRegisteredUsers():
 	matches = []
 
 	for u in users:
-		key = ndb.Key(User, u[PHONE_NUMBER])
+		key = ndb.Key(User, u[USER_ID])
 		user = key.get()
 		if user:
 			matches.append(u)
@@ -90,20 +87,13 @@ def checkRegisteredUsers():
 	return make_response(jsonify({USERS: matches}), http.OK)
 
 
-@app.route('/users/<path:id_user>', methods = [GET, PUT, DELETE])
+@app.route('/users/<path:id_user>', methods = [PUT, DELETE])
 def manager_user(id_user):
-	if request.method == GET:
-		return getUserDetails(id_user)
 	if request.method == PUT:
+		if FROM in request.json:
+			return sendMsg(id_user)
 		return updateUser(id_user)
-	if request.method == DELETE:
-		return deleteUser(id_user)
 
-
-def getUserDetails(id_user):
-	key = ndb.Key(User, id_user)
-	user = key.get()
-	return make_response(jsonify(user.user_complete2json()), http.OK)
 
 def updateUser(id_user):
 	if not request.json or not (REG_ID in request.json):
@@ -124,22 +114,7 @@ def deleteUser(id_user):
 	key.delete()
 	return make_response(jsonify({'deleted':id_user}), http.OK)
 
-@app.route('/users/<path:id_user>/send', methods = [POST])
-def manager_user_send(id_user):
-	if request.method == POST:
-		return sendMsg(id_user)
 
-def sendMessage(id_user):
-	key = ndb.Key(User, id_user)
-	user = key.get()
-
-	gcm = GCM(API_KEY)
-
-	data = request.json
-	reg_id = [user.regID]
-
-	response = gcm.json_request(registration_ids = reg_id, data = data)
-	return make_response(jsonify({'sent':data}), http.OK)
 
 def sendMsg(id_user):
 	u = request.json
@@ -211,7 +186,7 @@ def manager_images():
 def get_image_by_link():
 	image = Image.query(Image.link == request.args.get(LINK))
 
-	if image is not None:
+	if image.get() is not None:
 		return make_response(jsonify({BLOB: image.get().blobKey}), http.OK)
 	else:
 		return make_response("No images", http.NOT_FOUND)
@@ -221,10 +196,19 @@ def get_images_by_keywords():
 	u = request.args.get(USER_ID)
 	user = ndb.Key(User, u)
 	key_words = request.args.getlist(KEY_WORDS)
+	categories = request.args.getlist(CATEGORIES)
 
-	collaborative_images = recommender_system.get_images_collaborative(user, key_words)
+	knoledge_site = recommender_system.get_knowledge_site(categories)
+	content_sites = recommender_system.get_images_content(user)
 
-	return make_response(jsonify({BLOB: collaborative_images}), http.OK)
+	sites = content_sites + [knoledge_site]
+
+	pictograms = recommender_system.get_pictograms(key_words)
+	collaborative_images = recommender_system.get_images_collaborative(user, key_words, pictograms)
+
+
+
+	return make_response(jsonify({IMAGE: collaborative_images, SITE_LINK: sites}), http.OK)
 
 
 
@@ -310,9 +294,9 @@ def update_images_used(image, user):
 def update_related_users(user1, image):
 	images_used = ImageUsed.query(ImageUsed.image == image)
 	for imgUsed in images_used:
-		user2 = imgUsed.user.get()
+		user2 = imgUsed.user
 		r_user = RelatedUsers.query(RelatedUsers.user1.IN([user1, user2]),
-		                            RelatedUsers.user2.IN([user1, user2]))
+		                            RelatedUsers.user2.IN([user1, user2])).get()
 		if r_user is not None:
 			r_user.relation += 1
 		else:
@@ -320,8 +304,9 @@ def update_related_users(user1, image):
 		r_user.put()
 
 
+
 @app.route("/pictograms/<path:id_img>", methods=[PUT])
-def manager_pictograms(id_img):
+def manager_pictogram(id_img):
 	return updatePictogram(id_img)
 
 def updatePictogram(id_img):
@@ -331,6 +316,11 @@ def updatePictogram(id_img):
 	img = request.json
 
 	tags = img[TAG]
+
+	key_words = []
+	key_word = KeyWord(keyWord="__pictogram__", count=1)
+	key_words.append(key_word)
+	image.keyWords = key_words
 	for k in tags:
 		image.tags.append(Tag(tag=k, probability=tags[k]))
 
@@ -341,8 +331,15 @@ def updatePictogram(id_img):
 
 @app.route("/try", methods=[GET])
 def manager_try():
-	key_words = request.args.getlist(KEY_WORDS)
-	return make_response(jsonify({"hola":key_words}), 200)
+	categories = request.args.getlist(CATEGORIES)
+
+	with open("knowledge_sites.json") as data_file:
+		category_sites = json.load(data_file)
+
+	for category in categories:
+		if category in category_sites:
+			return make_response(jsonify({category: category_sites[category]}), 200)
+	return make_response(jsonify(categories), 200)
 
 
 

@@ -3,6 +3,11 @@ indexes:
   properties:
   - name: image
   - name: user
+- kind: ImageUsed
+  properties:
+  - name: image
+  - name: user
+  - name: count
 - kind: RelatedUsers
   properties:
   - name: user1

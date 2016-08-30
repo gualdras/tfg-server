@@ -26,10 +26,7 @@ class Image(ndb.Model):
 		for t in self.tags:
 			tags[t.tag] = t.probability
 		iDetails = {"tags": tags, "keyWords": self.keyWords, "link":self.link, "siteLink":self.siteLink}
-		return iDetails	
-
-	def update_key_words(self, newKeyWords):
-		update_key_words(self, newKeyWords)
+		return iDetails
 
 
 class User(ndb.Model):
@@ -50,9 +47,6 @@ class User(ndb.Model):
 		for item in User.query():
 			aux_list.append(item.user2json())
 		return aux_list
-
-	def update_key_words(self, new_key_words):
-		update_key_words(self, new_key_words)
 
 
 class ImageUsed(ndb.Model):
