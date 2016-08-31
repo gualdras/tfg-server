@@ -15,7 +15,6 @@ MINIMUM_RELATION = 0
 PICTOGRAM_TAG = ["__pictogram__"]
 
 
-
 def get_images_collaborative(user, key_words, pictograms):
 	def callback(images_used):
 		return images_used.user
@@ -72,6 +71,7 @@ def get_images_content(user):
 				break
 	return favorite_sites
 
+
 def get_knowledge_site(categories):
 
 	with open("knowledge_sites.json") as data_file:
@@ -80,6 +80,7 @@ def get_knowledge_site(categories):
 	for category in categories:
 		if category in category_sites:
 			return category_sites[category]
+
 
 def get_pictograms(key_words):
 	images = []

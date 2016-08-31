@@ -47,7 +47,6 @@ KEY_WORDS = "key_words"
 CATEGORIES = "categories"
 LINK = "link"
 SITE_LINK = "site_link"
-FLICKR_TAGS = "flickr_tags"
 
 
 @app.errorhandler(http.NOT_FOUND)
@@ -58,11 +57,12 @@ def not_found(error):
 @app.route('/users', methods = [POST, PUT])
 def manager_users():
 	if request.method == PUT:
-		return checkRegisteredUsers()
+		return check_registered_users()
 	if request.method == POST:
-		return newUser()
+		return new_user()
 
-def newUser():
+
+def new_user():
 	if not request.json or not all(x in request.json for x in {PHONE_NUMBER, REG_ID}):
 		abort(http.NOT_FOUND)
 
@@ -74,7 +74,8 @@ def newUser():
 
 	return make_response(jsonify({'created':user.key.id()}), http.CREATED)
 
-def checkRegisteredUsers():
+
+def check_registered_users():
 	users = request.json[USERS]
 	matches = []
 
@@ -87,15 +88,17 @@ def checkRegisteredUsers():
 	return make_response(jsonify({USERS: matches}), http.OK)
 
 
-@app.route('/users/<path:id_user>', methods = [PUT, DELETE])
+@app.route('/users/<path:id_user>', methods=[PUT, DELETE])
 def manager_user(id_user):
 	if request.method == PUT:
 		if FROM in request.json:
-			return sendMsg(id_user)
-		return updateUser(id_user)
+			return send_msg(id_user)
+		return update_user(id_user)
+	if request.method == DELETE:
+		return delete_user(id_user)
 
 
-def updateUser(id_user):
+def update_user(id_user):
 	if not request.json or not (REG_ID in request.json):
 		abort(http.BAD_REQUEST)
 
@@ -107,16 +110,10 @@ def updateUser(id_user):
 
 	user.put()
 
-	return make_response(jsonify({'updated':user.to_dict()}), http.OK)
-
-def deleteUser(id_user):
-	key = ndb.Key(User, id_user)
-	key.delete()
-	return make_response(jsonify({'deleted':id_user}), http.OK)
+	return make_response(jsonify({'updated': user.to_dict()}), http.OK)
 
 
-
-def sendMsg(id_user):
+def send_msg(id_user):
 	u = request.json
 	key = ndb.Key(User, id_user)
 	user = key.get()
@@ -136,14 +133,15 @@ def sendMsg(id_user):
 	return make_response(jsonify({'response':data}), status)
 
 
+def delete_user(id_user):
+	key = ndb.Key(User, id_user)
+	key.delete()
+	return make_response(jsonify({'deleted':id_user}), http.OK)
 
 
 '''
 Blobstore for photos management
 '''
-
-
-
 
 
 # Get blob uri
@@ -152,15 +150,18 @@ def manager_upload_form():
 	if request.method == GET:
 		return upload()
 
+
 def upload():
-	uploadUri = blobstore.create_upload_url('/upload_photo')
-	return make_response(uploadUri, http.OK)
+	upload_uri = blobstore.create_upload_url('/upload_photo')
+	return make_response(upload_uri, http.OK)
+
 
 # upload photo and get blob_key
 @app.route("/upload_photo", methods=[POST])
 def manager_upload_photo():
 	if request.method == POST:
 		return upload_photo()
+
 
 def upload_photo():
 	f = request.files['file']
@@ -198,18 +199,15 @@ def get_images_by_keywords():
 	key_words = request.args.getlist(KEY_WORDS)
 	categories = request.args.getlist(CATEGORIES)
 
-	knoledge_site = recommender_system.get_knowledge_site(categories)
+	knowledge_site = recommender_system.get_knowledge_site(categories)
 	content_sites = recommender_system.get_images_content(user)
 
-	sites = content_sites + [knoledge_site]
+	sites = content_sites + [knowledge_site]
 
 	pictograms = recommender_system.get_pictograms(key_words)
 	collaborative_images = recommender_system.get_images_collaborative(user, key_words, pictograms)
 
-
-
 	return make_response(jsonify({IMAGE: collaborative_images, SITE_LINK: sites}), http.OK)
-
 
 
 @app.route("/images/<path:id_img>", methods=[GET, PUT])
@@ -238,8 +236,8 @@ def edit_img(id_img):
 
 	user = (ndb.Key(User, img[USER_ID])).get()
 
-	newKeyWords = img[KEY_WORDS]
-	update_key_words(image, newKeyWords)
+	new_key_words = img[KEY_WORDS]
+	update_key_words(image, new_key_words)
 
 	if LINK in img:
 		image.link = img[LINK]
@@ -254,7 +252,7 @@ def edit_img(id_img):
 
 	image.put()
 
-	update_key_words(user, newKeyWords)
+	update_key_words(user, new_key_words)
 	user.put()
 
 	update_images_used(image.key, user.key)
@@ -304,12 +302,12 @@ def update_related_users(user1, image):
 		r_user.put()
 
 
-
 @app.route("/pictograms/<path:id_img>", methods=[PUT])
 def manager_pictogram(id_img):
-	return updatePictogram(id_img)
+	return update_pictogram(id_img)
 
-def updatePictogram(id_img):
+
+def update_pictogram(id_img):
 	key = ndb.Key(Image, id_img)
 	image = key.get()
 
@@ -340,7 +338,6 @@ def manager_try():
 		if category in category_sites:
 			return make_response(jsonify({category: category_sites[category]}), 200)
 	return make_response(jsonify(categories), 200)
-
 
 
 if __name__ == '__main__':

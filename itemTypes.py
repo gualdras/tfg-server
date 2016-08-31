@@ -1,5 +1,6 @@
 from google.appengine.ext import ndb
 
+
 class KeyWord(ndb.Model):
 	keyWord = ndb.StringProperty()
 	count = ndb.IntegerProperty()
@@ -19,8 +20,7 @@ class Image(ndb.Model):
 	keyWords = ndb.StructuredProperty(KeyWord, repeated=True)
 	link = ndb.StringProperty()
 	siteLink = ndb.StringProperty()
-	flickrTags = ndb.StringProperty(repeated=True)
-	
+
 	def imageComplete2json(self):
 		tags = {}
 		for t in self.tags:
